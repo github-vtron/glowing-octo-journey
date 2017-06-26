@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>util功能测试</title>
+        <style>
+            /* 随机颜色 */
+            #random-color {
+                width: 200px;
+                height: 200px;
+                transition: background-color .2s linear;
+                text-align: center;
+                line-height: 200px;
+                font-size: 20px;
+            }
+            
+            /* 数字递增动画 */
+            #increase-number .number-container {
+                width: 100px;
+                height: 100px;
+                line-height: 100px;
+                font-size: 2em;
+                background-color: silver;
+                text-align: center;
+            }
+        </style>
+        <script src="../util.js"></script>
+    </head>
+    <body>
+        <section>
+            <h2>获取随机数Util.random(a, b)</h2>
+            
+        </section>
+        <hr />
+        
+        <section>
+            <h2>获取随机颜色Util.getRandomColor()</h2>
+            <div id="random-color"></div>
+            <button id="random-color-test">生成随机颜色</button>
+            <input type="text" id="color-interval" />
+            <button id="auto-color-test">自动设置随机颜色</button>
+        </section>
+        <hr />
+        
+        <section id="increase-number">
+            <h2>数字递增动画Util.increasingNumber(numberContainer, startNumber, endNumber, increaseStep, callback)</h2>
+            <div class="number-container"></div>
+            <input type="text" class="startNumber" value="1" />
+            <input type="text" class="endNumber" value="100" />
+            <input type="text" class="increaseStep" value="0.1" />
+            <button class="start">开始</button>
+        </section>
+        <hr />
+        
+        <script>
+            // 随机颜色测试
+            var randomColorBtn = document.querySelector('#random-color-test'),
+                randomColorDiv = document.querySelector('#random-color');
+            randomColorBtn.onclick = function() {
+                var randomColor = Util.getRandomColor();
+                randomColorDiv.style.backgroundColor = randomColor;
+                randomColorDiv.textContent = randomColor;
+            };
+            document.querySelector('#auto-color-test').onclick = function() {
+                var interval = document.querySelector('#color-interval').value;
+                setInterval(function() {
+                    randomColorBtn.click();
+                }, interval);
+            };
+            
+            // 数字递增动画测试
+            var increaseNumberSection = document.querySelector('#increase-number'),
+                numberContainer = increaseNumberSection.querySelector('.number-container'),
+                startNumber = increaseNumberSection.querySelector('.startNumber'),
+                endNumber = increaseNumberSection.querySelector('.endNumber'),
+                increaseStep = increaseNumberSection.querySelector('.increaseStep');
+            increaseNumberSection.querySelector('.start').onclick = function() {
+                Util.increasingNumber(numberContainer, startNumber.value, endNumber.value, increaseStep.value, function() {
+                    alert('ouch! my eye!');
+                });
+            };
+        </script>
+    </body>
+</html>

@@ -1,0 +1,2 @@
+# ignore masOS generated hidden files
+*.DS_Store

@@ -1,0 +1,245 @@
+<!-- /**
+ * 功能：起始点始终指向某个点，跟随对话框移动或者改变大小而自动调整形状，始终跟随着对话框的箭头，对话框的拖拽和调整大小另外单独实现，这里通过监听标签下面的对话框的突变事件来改变箭头的形状
+ *
+ * 使用方式：<continuous-dialog-arrow arrow-width="30" arrow-color="brown">
+*                  <div title="这是可拖拽和调整大小的对话框"></div>
+ *              </continuous-dialog-arrow>
+ *
+ * 组件属性：1、 arrowWidth, 箭头不尖的一端的宽度，也可以设置标签上面的arrow-width属性
+ *             2、 arrowColor, 箭头背景颜色，也可以设置标签上面的arrow-color属性
+ *
+ * 组件方法：1、 setArrowStartPoint(x, y), 设置箭头尖的一端指向的坐标点，坐标点是相对于文档左上角
+ *             2、 getArrowStartPoint(), 获取对话框箭头的起始点坐标
+ *
+ * 实现原理：该组件没有实现对话框的拖拽和调整大小的功能，只是通过mutationObserver监听对话框位置或者大小的改变，之后确定绘制箭头的三个点的坐标(已经设置好的箭头起始点，与箭头起始点和对话框中心点连线垂直方向的在对话框中心点两侧的另外两个点)，并根据这三个点在铺满屏幕的svg中实时绘制代表对话框箭头的多边形，svg只有一个，每个对话框箭头对应一个多边形。
+ *
+ * 不足之处或者需要改进的地方：
+ * 1、 对话框不能带有透明度，否则会看到对话框底下的箭头
+ * 2、 监听对话框的删除事件，对话框删除之后把这个标签里面对对话框的引用删除(或者直接把这个标签删除)
+ *
+ * 需要注意的地方：只删除这个标签底下的对话框会引起内存泄漏，应该直接把这个标签删除
+ *
+ * @author: sange
+ *
+ * @date: 2017-05-19 14:58:30
+ */ -->
+
+<script>
+    (function() {
+        "use strict";
+        // Define the new element
+        customElements.define('continuous-dialog-arrow', class extends HTMLElement {
+            constructor() {
+                // Always call super first in constructor
+                super();
+                this._arrowWidth = 20; //箭头不尖的另一端的宽度
+                this._arrowColor = 'black'; //对话框箭头背景颜色
+                this._observer = null; //对话框属性突变监听器
+                this._polygon = null; //绘制对话框箭头的多边形
+                this._arrowStartPoint = {
+                    x: 0,
+                    y: 0
+                }; //对话框箭头起始点坐标
+            }
+
+            static get observedAttributes() {
+                return ['arrow-width', 'arrow-color'];
+            }
+
+            connectedCallback() {
+                this._dialog = this.firstElementChild;
+                if (!this._dialog) return;
+
+                var arrowSvg = this._createArrowSvg();
+                //绘制对话框箭头的多边形（每个对话框箭头对应一个多边形）
+
+                //下面这种方式生成的多边形不会显示，可能是浏览器的bug
+                /*var polygon = document.createElement('polygon');
+                arrowSvg.appendChild(polygon);*/
+
+                arrowSvg.insertAdjacentHTML('beforeend', `<polygon fill="${this._arrowColor}"></polygon>`);
+                this._polygon = arrowSvg.lastElementChild;
+
+                this._addMutationObserver();
+
+                this.setAttribute('arrow-width', this._arrowWidth);
+                this.setAttribute('arrow-color', this._arrowColor);
+            }
+
+            disconnectedCallback() {
+                this._observer && this._observer.disconnect();
+                if (!this._polygon) {
+                    return;
+                }
+                var svgElem = this._polygon.parentElement;
+                this._polygon.remove();
+                
+                if (svgElem.childElementCount === 0) {
+                    svgElem.remove();
+                }
+            }
+
+            attributeChangedCallback(attr, oldValue, newValue) {
+                if (oldValue == newValue) return;
+
+                switch (attr) {
+                    case 'arrow-width':
+                        this._arrowWidth = newValue;
+                        break;
+                    case 'arrow-color':
+                        this._arrowColor = newValue;
+                        break;
+                }
+
+                this._updateArrow();
+            }
+
+            get arrowWidth() {
+                return this._arrowWidth;
+            }
+
+            get arrowColor() {
+                return this._arrowColor;
+            }
+
+            set arrowWidth(newArrowWidth) {
+                if (this._arrowWidth == newArrowWidth) return;
+
+                this._arrowWidth = newArrowWidth;
+                this.setAttribute('arrow-width', newArrowWidth);
+            }
+
+            set arrowColor(newArrowColor) {
+                if (this._arrowColor == newArrowColor) return;
+
+                this._arrowColor = newArrowColor;
+                this.setAttribute('arrow-color', newArrowColor);
+            }
+
+            /** 
+             * 设置对话框箭头起始点坐标
+             * @method setArrowStartPoint
+             * @param {integer} x 起始点相对于文档左上角的X坐标
+             * @param {integer} y 起始点相对于文档左上角的Y坐标
+             */
+            setArrowStartPoint(x, y) {
+                if (!this._dialog) return;
+
+                this._arrowStartPoint.x = x;
+                this._arrowStartPoint.y = y;
+                this.setAttribute('x', x);
+                this.setAttribute('y', y);
+                //更新一次对话框箭头
+                this._updateArrow();
+            }
+
+            /** 
+             * 获取对话框箭头起始点坐标
+             * @method getArrowStartPoint
+             */
+            getArrowStartPoint() {
+                return this._arrowStartPoint;
+            }
+
+            /** 
+             * 计算对话框中心点坐标
+             * @method _getDialogCenterPoint
+             * @param {object} dialogRect 使用getBoundingClientRect获取的有关宽高和位置信息
+             * @return {object} 对话框中心点坐标
+             */
+            _getDialogCenterPoint(dialogRect) {
+                var dialogCenterPoint = {
+                    x: dialogRect.left + dialogRect.width / 2 + scrollX,
+                    y: dialogRect.top + dialogRect.height / 2 + scrollY
+                };
+                return dialogCenterPoint;
+            }
+
+            /** 
+             * 获取对话框箭头三个点坐标
+             * @method _getDialogArrowPoints
+             * @param {object} dialogCenterPoint 对话框中心点{x: 100, y: 200}
+             * @return {object} 对话框箭头三个点坐标
+             */
+            _getDialogArrowPoints(dialogCenterPoint) {
+                //对话框中心点与箭头起始点连线与Y轴夹角
+                var rotateRad = Math.atan(-(dialogCenterPoint.x - this._arrowStartPoint.x) / (dialogCenterPoint.y - this._arrowStartPoint.y));
+                //对话框中心点两侧的点的坐标
+                var dx = this._arrowWidth * Math.cos(rotateRad),
+                    dy = this._arrowWidth * Math.sin(rotateRad),
+                    p1 = {
+                        x: dialogCenterPoint.x - dx,
+                        y: dialogCenterPoint.y - dy
+                    },
+                    p2 = {
+                        x: dialogCenterPoint.x + dx,
+                        y: dialogCenterPoint.y + dy
+                    };
+                return [this._arrowStartPoint, p1, p2];
+            }
+
+            /** 
+             * 更新对话框箭头
+             * @method _updateArrow
+             */
+            _updateArrow() {
+                if (!this._dialog) return;
+                var dialogRect = this._dialog.getBoundingClientRect();
+                if (dialogRect.height == 0) {
+                    //对话框隐藏了
+                    return this._polygon.removeAttribute('points');
+                }
+
+                var dialogCenterPoint = this._getDialogCenterPoint(dialogRect),
+                    arrowPoints = this._getDialogArrowPoints(dialogCenterPoint);
+                this._polygon.setAttribute('points', `${arrowPoints[0].x},${arrowPoints[0].y} ${arrowPoints[1].x},${arrowPoints[1].y} ${arrowPoints[2].x},${arrowPoints[2].y}`);
+                this._polygon.setAttribute('fill', this._arrowColor);
+            }
+
+            /** 
+             * 创建对话框箭头的svg
+             * @method _createArrowSvg
+             * @return {dom node} 创建的绘制对话框箭头的svg
+             */
+            _createArrowSvg() {
+                var svgId = 'dialog-arrow-svg'; //对话框箭头所在svg的id
+                var svgElem = document.body.querySelector('#' + svgId);
+                if (svgElem) return svgElem;
+                document.body.insertAdjacentHTML('beforeend', `<svg id="${svgId}" width="100%" height="100%" style="left: 0; top: 0; position: absolute; pointer-events: none;"></svg>`);
+                return document.body.lastElementChild;
+
+                //用下面这种appendChild的方式生成svg, svg下面的元素不会显示，应该是浏览器bug
+                /*svgElem = document.createElement('svg');
+                svgElem.id = svgId;
+                document.body.appendChild(svgElem);
+                return svgElem;*/
+            }
+
+            /** 
+             * 监听对话框宽高和位置的变化
+             * @method _addMutationObserver
+             */
+            _addMutationObserver() {
+                //监听对话框突变事件并更新箭头形状
+                this._observer = new MutationObserver(mutations => {
+                    var lastMutation = mutations.pop();
+                    if (lastMutation.type != 'attributes') return;
+                    this._updateArrow();
+                });
+
+                // configuration of the observer:
+                var config = {
+                    attributes: true,
+                    childList: true,
+                    characterData: true,
+                    subtree: false,
+                    attributeFilter: ['style']
+                };
+
+                // pass in the target node, as well as the observer options
+                this._observer.observe(this._dialog, config);
+            }
+        });
+    })();
+
+</script>

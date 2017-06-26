@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <link rel="import" href="../custom elements/continuousDialogArrow.html" />
+    <title>跟随对话框的箭头</title>
+    <link rel="stylesheet" href="http://apps.bdimg.com/libs/jqueryui/1.9.2/themes/base/jquery-ui.css" />
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+        
+        body {
+            position: relative;
+            margin: 0;
+            /*overflow: hidden;*/
+            width: 150%;
+        }
+        
+        .dialog {
+            position: absolute;
+        }
+
+    </style>
+</head>
+
+<body>
+    <continuous-dialog-arrow id="dialog-arrow1" arrow-width="30" arrow-color="violet">
+        <div id="dialog1" class="dialog" style="width: 300px; height: 300px; background-color: brown; z-index: 1;"></div>
+    </continuous-dialog-arrow>
+    
+    <continuous-dialog-arrow id="dialog-arrow2" arrow-width="30" arrow-color="violet">
+        <div id="dialog2" class="dialog" style="width: 300px; height: 300px; background-color: brown; z-index: 1;"></div>
+    </continuous-dialog-arrow>
+
+    <script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="http://apps.bdimg.com/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
+
+    <script>
+        $('#dialog1').draggable().resizable({
+            handles: 'all'
+        });
+        var dialogArrow1 = document.querySelector('#dialog-arrow1');
+        dialogArrow1.setArrowStartPoint(500, 500);
+        
+        $('#dialog2').draggable().resizable({
+            handles: 'all'
+        });
+        var dialogArrow2 = document.querySelector('#dialog-arrow2');
+        dialogArrow2.setArrowStartPoint(500, 500);
+
+    </script>
+</body>
+
+</html>
